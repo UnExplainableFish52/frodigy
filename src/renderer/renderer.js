@@ -121,7 +121,9 @@ window.addEventListener('unhandledrejection', (e) => {
 // Initial load
 (async () => {
   try {
-    const theme = await window.frodigy.invoke('settings:get', { key: 'theme' }) || 'neon_abyss';
+    let theme = await window.frodigy.invoke('settings:get', { key: 'theme' }) || 'neon_abyss';
+    // Map legacy theme names
+    if (theme === 'vibrant_gold') theme = 'warm_light';
     document.documentElement.setAttribute('data-theme', theme);
     navigateTo(getPageFromHash());
   } catch (err) {

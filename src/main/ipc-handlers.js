@@ -1,5 +1,9 @@
-const { ipcMain, Notification } = require('electron');
+const { ipcMain, Notification, shell } = require('electron');
 const path = require('path');
+const https = require('https');
+
+const GITHUB_REPO = 'UnEliteFish52/frodigy';
+const CURRENT_VERSION = require('../../package.json').version;
 const { getDatabase } = require('./db');
 
 function todayISO() {
@@ -329,6 +333,90 @@ function registerAllHandlers() {
       }
     }
   }, 10000);
+
+  // ─── APP INFO & UPDATES ─────────────────────────────────────
+
+  ipcMain.handle('app:get-version', () => {
+    return CURRENT_VERSION;
+  });
+
+  ipcMain.handle('app:check-for-updates', () => {
+    return new Promise((resolve) => {
+      const options = {
+        hostname: 'api.github.com',
+        path: `/repos/${GITHUB_REPO}/releases/latest`,
+        method: 'GET',
+        headers: {
+          'User-Agent': 'Frodigy-App',
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      };
+
+      const req = https.request(options, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          try {
+            if (res.statusCode === 200) {
+              const release = JSON.parse(data);
+              const latestVersion = release.tag_name.replace(/^v/, '');
+              const hasUpdate = compareVersions(latestVersion, CURRENT_VERSION) > 0;
+              resolve({
+                success: true,
+                currentVersion: CURRENT_VERSION,
+                latestVersion,
+                hasUpdate,
+                releaseUrl: release.html_url,
+                releaseName: release.name || release.tag_name
+              });
+            } else if (res.statusCode === 404) {
+              resolve({
+                success: true,
+                currentVersion: CURRENT_VERSION,
+                latestVersion: CURRENT_VERSION,
+                hasUpdate: false,
+                releaseUrl: `https://github.com/${GITHUB_REPO}/releases`,
+                releaseName: null
+              });
+            } else {
+              resolve({ success: false, error: `GitHub API returned ${res.statusCode}` });
+            }
+          } catch (e) {
+            resolve({ success: false, error: 'Failed to parse response' });
+          }
+        });
+      });
+
+      req.on('error', (e) => {
+        resolve({ success: false, error: e.message });
+      });
+
+      req.setTimeout(10000, () => {
+        req.destroy();
+        resolve({ success: false, error: 'Request timed out' });
+      });
+
+      req.end();
+    });
+  });
+
+  ipcMain.handle('app:open-external', (_event, url) => {
+    shell.openExternal(url);
+    return { success: true };
+  });
+}
+
+// Compare semantic versions, returns: 1 if a > b, -1 if a < b, 0 if equal
+function compareVersions(a, b) {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    const na = pa[i] || 0;
+    const nb = pb[i] || 0;
+    if (na > nb) return 1;
+    if (na < nb) return -1;
+  }
+  return 0;
 }
 
 module.exports = { registerAllHandlers };

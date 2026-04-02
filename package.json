@@ -13,7 +13,7 @@
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "type": "commonjs",
   "build": {
     "appId": "com.frodigy.app",
@@ -26,7 +26,7 @@
         "nsis",
         "portable"
       ],
-      "icon": "calendar_notes.png"
+      "icon": "build/icons/icon.ico"
     },
     "nsis": {
       "oneClick": false,
